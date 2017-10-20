@@ -115,7 +115,7 @@ class AccountInvoiceAdapter2000(AccountInvoiceAdapter):
     def create(self, order_increment_id, items, comment, email,
                include_comment):
         arguments = {
-            'capture': False,
+            'capture': True,
             'items': [{'orderItemId': key, 'qty': value}
                       for key, value in items.items()],
             'comment': {
