@@ -23,6 +23,7 @@ import logging
 import xmlrpclib
 from datetime import datetime, timedelta
 import openerp.addons.decimal_precision as dp
+from openerp.exceptions import Warning as UserError
 from openerp import models, fields, api, _
 from openerp.addons.connector.connector import ConnectorUnit
 from openerp.addons.connector.session import ConnectorSession
@@ -674,8 +675,16 @@ class SaleOrderImporter(MagentoImporter):
         child_items = {}  # key is the parent item id
         top_items = []
 
+        is_pre_order = resource.get('extension_attributes', {}).get(
+            'is_pre_order')
         # Group the childs with their parent
         for item in resource['items']:
+            # Pre-order customizations
+            if item.get('sku') and item['sku'].startswith('PRE-ORDER'):
+                item['sku'] = 'PRE-ORDER'
+            if is_pre_order:
+                item['is_pre_order'] = True
+            # End of pre-order customizations
             if item.get('parent_item_id'):
                 child_items.setdefault(item['parent_item_id'], []).append(item)
             elif item.get('parent_item'):  # 2.0
@@ -721,8 +730,22 @@ class SaleOrderImporter(MagentoImporter):
             # information is empty, but contains the right sku and
             # product_id. So the real product_id and the sku and the name
             # have to be extracted from the child
-            for field in ['sku', 'product_id', 'name']:
-                item[field] = child_items[0][field]
+            # -- custom: price fields are included in the child. Also, there
+            # sometimes are empty values in the child that we don't want to take
+            # (e.g. base_row_total)
+            for field in [
+                    'sku', 'product_id', 'name', 'base_price',
+                    'base_price_incl_tax', 'base_row_invoiced',
+                    'base_row_total', 'base_row_total_incl_tax',
+                    'base_tax_amount', 'base_tax_invoiced',
+                    'parent_item_id', 'price', 'price_incl_tax',
+                    'row_invoiced', 'row_total', 'row_total_incl_tax',
+                    'tax_amount', 'tax_invoiced']:
+                if child_items[0].get(field):
+                    item[field] = child_items[0][field]
+            if child_items[0].get('extension_attributes'):
+                item.setdefault('extension_attributes', {}).update(
+                    child_items[0]['extension_attributes'])
             # Experimental support for configurable products with multiple
             # subitems
             return [item] + child_items[1:]
@@ -1121,6 +1144,53 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
 
     def _get_product_ref(self, record):
         return record['sku']
+
+    @mapping
+    def subscription(self, record):
+        """ Customization. Transfer subscription attributes. Create
+        subscription entries if this is an initial order. Link with
+        existing subscription entries if this is a remainder or fee order.
+        """
+        res = {}
+        refs = record.get('extension_attributes', {}).get('subscription_ids')
+        if refs:
+            _logger.debug(
+                'item_id %s belongs to a subscription or pre order',
+                record['item_id'])
+            link_type = False
+            if record.get('is_virtual'):
+                if record.get('is_pre_order'):
+                    res['presale_initial'] = True
+                else:
+                    res['subscription_fee'] = True
+                    link_type = 'subscription'
+            else:
+                if record.get('is_pre_order'):
+                    res['presale_remainder'] = True
+                    link_type = 'presale'
+                else:
+                    res['subscription_initial'] = True
+            if link_type:
+                res['subscription_fee_ids'] = []
+                for ref in refs:
+                    subscription = self.env['vanmoof.subscription'].search([
+                        ('name', '=', ref)])
+                    if not subscription:
+                        raise UserError(
+                            'Cannot find %s with reference %s' %
+                            link_type, ref)
+                    res['subscription_fee_ids'].append((4, subscription.id))
+            else:
+                res['subscription_main_ids'] = []
+                for ref in refs:
+                    subscription = self.env['vanmoof.subscription'].create({
+                        'name': ref})
+                    res['subscription_main_ids'].append((4, subscription.id))
+        else:
+            _logger.debug(
+                'item_id %s does not belong to a subscription or pre order',
+                record['item_id'])
+        return res
 
 
 @magento
