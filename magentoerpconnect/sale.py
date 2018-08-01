@@ -731,8 +731,8 @@ class SaleOrderImporter(MagentoImporter):
             # product_id. So the real product_id and the sku and the name
             # have to be extracted from the child
             # -- custom: price fields are included in the child. Also, there
-            # sometimes are empty values in the child that we don't want to take
-            # (e.g. base_row_total)
+            # sometimes are empty values in the child that we don't want to
+            # take (e.g. base_row_total)
             for field in [
                     'sku', 'product_id', 'name', 'base_price',
                     'base_price_incl_tax', 'base_row_invoiced',
@@ -748,6 +748,16 @@ class SaleOrderImporter(MagentoImporter):
                     child_items[0]['extension_attributes'])
             # Experimental support for configurable products with multiple
             # subitems
+
+            for ch_item in child_items:
+                if ch_item.get('base_row_total_incl_tax', 0) < 0:
+                    if item.get('discount_amount', 0) < -1 * ch_item[
+                            'base_row_total_incl_tax']:
+                        raise UserError(
+                            'Negative discount line found but not sufficient '
+                            'discount on parent item')
+                    item['discount_amount'] += ch_item['base_row_total_incl_tax']
+
             return [item] + child_items[1:]
         elif product_type == 'bundle':
             return child_items
@@ -1158,7 +1168,7 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
                 'item_id %s belongs to a subscription or pre order',
                 record['item_id'])
             link_type = False
-            if record.get('is_virtual'):
+            if record.get('is_virtual') and not record['price'] < 0:
                 if record.get('is_pre_order'):
                     res['presale_initial'] = True
                 else:
@@ -1173,12 +1183,12 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
             if link_type:
                 res['subscription_fee_ids'] = []
                 for ref in refs:
-                    subscription = self.env['vanmoof.subscription'].search([
+                    subscription = self.env['vanmoof.subscription'].sudo().search([
                         ('name', '=', ref)])
                     if not subscription:
                         raise UserError(
-                            'Cannot find %s with reference %s' %
-                            link_type, ref)
+                            'Cannot find %s with reference %s' % (
+                                link_type, ref))
                     res['subscription_fee_ids'].append((4, subscription.id))
             else:
                 res['subscription_main_ids'] = []
