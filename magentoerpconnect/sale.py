@@ -698,7 +698,7 @@ class SaleOrderImporter(MagentoImporter):
             if top_item['item_id'] in child_items:
                 item_modified = self._merge_sub_items(
                     top_item['product_type'], top_item,
-                    child_items[top_item['item_id']])
+                    child_items[top_item['item_id']], resource)
                 if not isinstance(item_modified, list):
                     item_modified = [item_modified]
                 all_items.extend(item_modified)
@@ -707,7 +707,7 @@ class SaleOrderImporter(MagentoImporter):
         resource['items'] = all_items
         return resource
 
-    def _merge_sub_items(self, product_type, top_item, child_items):
+    def _merge_sub_items(self, product_type, top_item, child_items, resource):
         """
         Manage the sub items of the magento sale order lines. A top item
         contains one or many child_items. For some product types, we
@@ -749,14 +749,18 @@ class SaleOrderImporter(MagentoImporter):
             # Experimental support for configurable products with multiple
             # subitems
 
+            storeview = self._get_storeview(resource)
             for ch_item in child_items:
                 if ch_item.get('base_row_total_incl_tax', 0) < 0:
-                    if item.get('discount_amount', 0) < -1 * ch_item[
-                            'base_row_total_incl_tax']:
+                    amount = (
+                        ch_item['base_row_total_incl_tax']
+                        if storeview.catalog_price_tax_included
+                        else ch_item['base_row_total'])
+                    if item.get('discount_amount', 0) < -1 * amount:
                         raise UserError(
                             'Negative discount line found but not sufficient '
                             'discount on parent item')
-                    item['discount_amount'] += ch_item['base_row_total_incl_tax']
+                    item['discount_amount'] += amount
 
             return [item] + child_items[1:]
         elif product_type == 'bundle':
