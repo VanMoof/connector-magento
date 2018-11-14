@@ -149,6 +149,13 @@ class MagentoPickingExporter(Exporter):
             )
             if not magento_sale_line:
                 continue
+            # Custom: only communicate transfer of first level Magento
+            # order lines. 'parent_item' field is defined in vanmoof_magento
+            if 'parent_item' in magento_sale_line._fields and (
+                    magento_sale_line.parent_item and
+                    str(magento_sale_line.parent_item) !=
+                    magento_sale_line.magento_id):
+                continue
             item_id = magento_sale_line.magento_id
             item_qty.setdefault(item_id, 0)
             item_qty[item_id] += line.product_qty
