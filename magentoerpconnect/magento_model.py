@@ -187,6 +187,12 @@ class MagentoBackend(models.Model):
         'The value can also be specified on website or the store or the '
         'store view.'
     )
+    is_multi_company = fields.Boolean(
+        string='Is Backend Multi-Company',
+        help="If this flag is set, it is possible to choose warehouse at each "
+             "level. "
+             "When import partner, ignore company_id if this flag is set.",
+    )
 
     _sql_constraints = [
         ('sale_prefix_uniq', 'unique(sale_prefix)',
@@ -376,6 +382,15 @@ class MagentoConfigSpecializer(models.AbstractModel):
         'The value can also be specified on website or the store or the '
         'store view.'
     )
+    specific_warehouse_id = fields.Many2one(
+        comodel_name='stock.warehouse',
+        string='Specific warehouse',
+        help='If specified, this warehouse will be used to load fill the '
+        'field warehouse (and company) on the sale order created by the '
+        'connector.'
+        'The value can also be specified on website or the store or the '
+        'store view.'
+    )
     account_analytic_id = fields.Many2one(
         comodel_name='account.analytic.account',
         string='Analytic account',
@@ -386,6 +401,10 @@ class MagentoConfigSpecializer(models.AbstractModel):
         string='Fiscal position',
         compute='_get_fiscal_position_id',
     )
+    warehouse_id = fields.Many2one(
+        comodel_name='stock.warehouse',
+        string='warehouse',
+        compute='_get_warehouse_id')
 
     @property
     def _parent(self):
@@ -404,6 +423,13 @@ class MagentoConfigSpecializer(models.AbstractModel):
             this.fiscal_position_id = (
                 this.specific_fiscal_position_id or
                 this._parent.fiscal_position_id)
+
+    @api.multi
+    def _get_warehouse_id(self):
+        for this in self:
+            this.warehouse_id = (
+                this.specific_warehouse_id or
+                this._parent.warehouse_id)
 
 
 class MagentoWebsite(models.Model):
@@ -431,6 +457,7 @@ class MagentoWebsite(models.Model):
         string='Magento Products',
         readonly=True,
     )
+    is_multi_company = fields.Boolean(related="backend_id.is_multi_company")
 
     @api.multi
     def import_partners(self):
@@ -515,6 +542,7 @@ class MagentoStore(models.Model):
              "payment method is not giving an option for this by "
              "itself. (See Payment Methods)",
     )
+    is_multi_company = fields.Boolean(related="backend_id.is_multi_company")
 
 
 class MagentoStoreview(models.Model):
@@ -556,13 +584,17 @@ class MagentoStoreview(models.Model):
              'but its sales orders should not be imported.',
     )
     catalog_price_tax_included = fields.Boolean(string='Prices include tax')
+    is_multi_company = fields.Boolean(related="backend_id.is_multi_company")
 
     @api.multi
     def import_sale_orders(self):
-        session = ConnectorSession(self.env.cr, self.env.uid,
-                                   context=self.env.context)
         import_start_time = datetime.now()
         for storeview in self:
+            user_id = storeview.sudo().warehouse_id.company_id.\
+                magento_company_user_id.id or self.env.uid
+            session = ConnectorSession(self.env.cr, user_id,
+                                       context=self.env.context)
+
             if storeview.no_sales_order_sync:
                 _logger.debug("The storeview '%s' is active in Magento "
                               "but is configured not to import the "
