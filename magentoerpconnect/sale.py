@@ -681,6 +681,7 @@ class SaleOrderImporter(MagentoImporter):
         child_items = {}  # key is the parent item id
         top_items = []
 
+        prefix = self.env['ir.config_parameter'].get_param('outlet_product_prefix')
         is_pre_order = resource.get('extension_attributes', {}).get(
             'is_pre_order')
         # Group the childs with their parent
@@ -688,6 +689,12 @@ class SaleOrderImporter(MagentoImporter):
             # Pre-order customizations
             if item.get('sku') and item['sku'].startswith('PRE-ORDER'):
                 item['sku'] = 'PRE-ORDER'
+            # Outlet products mapping
+            elif item.get('sku') and item.get('sku').startswith(prefix+'-'):
+                sufix = item.get('sku').split('-')[-1]
+                item['outlet_route_hint'] = sufix
+                item['sku'] = item.get('sku').replace(
+                    prefix+'-','').replace('-'+sufix,'')
             if is_pre_order:
                 item['is_pre_order'] = True
             # End of pre-order customizations
