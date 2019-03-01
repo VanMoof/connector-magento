@@ -635,11 +635,11 @@ class ProductImporter(MagentoImporter):
             'outlet_product_prefix')
         if self.magento_record['sku'] and \
                 self.magento_record['sku'].startswith(prefix + '-'):
-            return _('Outlet products are mapped to real products and will'
-                     ' not be imported in ERP. All products with prefix'
-                     '{} will not be imported. Outlet product prefix '
-                     'is set in ERP config parameters as '
-                     'outlet_product_prefix'.format(prefix))
+            return 'Outlet products are mapped to real products and will'\
+                     ' not be imported in ERP. All products with prefix'\
+                     '{} will not be imported. Outlet product prefix '\
+                     'is set in ERP config parameters as '\
+                     'outlet_product_prefix'.format(prefix)
 
         if self.magento_record['type_id'] == 'configurable':
             return _('The configurable product is not imported in OpenERP, '
