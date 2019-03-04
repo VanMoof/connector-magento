@@ -693,10 +693,9 @@ class SaleOrderImporter(MagentoImporter):
             # Outlet products mapping
             elif prefix and item.get('sku') and \
                     item.get('sku').startswith(prefix+'-'):
-                sufix = item.get('sku').split('-')[-1]
-                item['outlet_route_hint'] = sufix
-                item['sku'] = item.get('sku').replace(
-                    prefix+'-', '').replace('-'+sufix, '')
+                suffix = item.get('sku').split('-')[-1]
+                item['outlet_route_hint'] = suffix
+                item['sku'] = item['sku'][len(prefix) + 1:-(len(suffix) + 1)]
             if is_pre_order:
                 item['is_pre_order'] = True
             # End of pre-order customizations
@@ -1202,9 +1201,9 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
             if link_type:
                 res['subscription_fee_ids'] = []
                 for ref in refs:
-                    subscription = \
-                        self.env['vanmoof.subscription'].sudo().search(
-                            [('name', '=', ref)])
+                    subscription = self.env[
+                        'vanmoof.subscription'].sudo().search(
+                        [('name', '=', ref)])
                     if not subscription:
                         raise UserError(
                             'Cannot find %s with reference %s' % (
