@@ -633,8 +633,7 @@ class ProductImporter(MagentoImporter):
         """
         prefix = self.env['ir.config_parameter'].get_param(
             'outlet_product_prefix')
-        if prefix and self.magento_record['sku'] and \
-                self.magento_record['sku'].startswith(prefix + '-'):
+        if prefix and self.magento_record['sku'].startswith(prefix + '-'):
             return ('Outlet products are mapped to real products and will'
                     ' not be imported in ERP. All products with prefix'
                     ' {} will not be imported. Outlet product prefix'
