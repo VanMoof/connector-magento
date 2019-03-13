@@ -229,6 +229,8 @@ class TestImportMagento(SetUpMagentoSynchronized):
         self.assertEqual(len(mag_order_line), 1)
         order_line = mag_order_line.openerp_id
         price_unit = order_line.price_unit
+        # Prices have been propagated from the child to the parent item as per
+        # customization
         self.assertAlmostEqual(price_unit, 41.0500)
 
     def test_import_sale_order_with_taxes_included(self):
