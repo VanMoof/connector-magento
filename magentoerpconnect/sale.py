@@ -765,7 +765,10 @@ class SaleOrderImporter(MagentoImporter):
 
             storeview = self._get_storeview(resource)
             for ch_item in child_items:
-                if ch_item.get('base_row_total_incl_tax', 0) < 0:
+                # Casting as float for pseudo compatiblity with Magento < 2.0,
+                # where these amounts are encoded in string type. This makes
+                # the Magento 1.7 test suite run without errors.
+                if float(ch_item.get('base_row_total_incl_tax') or 0) < 0:
                     amount = (
                         ch_item['base_row_total_incl_tax']
                         if storeview.catalog_price_tax_included
