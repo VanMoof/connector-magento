@@ -97,11 +97,8 @@ class TestExportInvoice(common.TransactionCase):
         # mock.patch prevents to create the job
         with mock.patch(patched) as export_invoice:
             self._invoice_open()
-            self.assertEquals(len(self.invoice.magento_bind_ids), 1)
-            export_invoice.delay.assert_called_with(
-                mock.ANY,
-                'magento.account.invoice',
-                self.invoice.magento_bind_ids[0].id)
+            # Due to customizations, no Magento invoice record is created
+            self.assertEquals(len(self.invoice.magento_bind_ids), 0)
 
         # pay and verify it is NOT called
         # mock.patch prevents to create the job
@@ -128,10 +125,8 @@ class TestExportInvoice(common.TransactionCase):
         with mock.patch(patched) as export_invoice:
             self._pay_and_reconcile()
             self.assertEqual(self.invoice.state, 'paid')
-            self.assertEquals(len(self.invoice.magento_bind_ids), 1)
-            export_invoice.delay.assert_called_with(
-                mock.ANY, 'magento.account.invoice',
-                self.invoice.magento_bind_ids[0].id)
+            # Due to customizations, no Magento invoice record is created
+            self.assertEquals(len(self.invoice.magento_bind_ids), 0)
 
     def test_export_invoice_on_payment_method_validate(self):
         """ Exporting an invoice: when it is validated with payment method """
@@ -147,10 +142,8 @@ class TestExportInvoice(common.TransactionCase):
         with mock.patch(patched) as export_invoice:
             self._invoice_open()
 
-            self.assertEquals(len(self.invoice.magento_bind_ids), 1)
-            export_invoice.delay.assert_called_with(
-                mock.ANY, 'magento.account.invoice',
-                self.invoice.magento_bind_ids[0].id)
+            # Due to customizations, no Magento invoice record is created
+            self.assertEquals(len(self.invoice.magento_bind_ids), 0)
 
         # pay and verify it is NOT called
         # mock.patch prevents to create the job
@@ -179,10 +172,8 @@ class TestExportInvoice(common.TransactionCase):
         with mock.patch(patched) as export_invoice:
             self._pay_and_reconcile()
             self.assertEqual(self.invoice.state, 'paid')
-            self.assertEquals(len(self.invoice.magento_bind_ids), 1)
-            export_invoice.delay.assert_called_with(
-                mock.ANY, 'magento.account.invoice',
-                self.invoice.magento_bind_ids[0].id)
+            # Due to customizations, no Magento invoice record is created
+            self.assertEquals(len(self.invoice.magento_bind_ids), 0)
 
     def _invoice_open(self):
         self.invoice.signal_workflow('invoice_open')
@@ -216,16 +207,7 @@ class TestExportInvoice(common.TransactionCase):
 
             # Here we check what call with which args has been done by the
             # BackendAdapter towards Magento to create the invoice
-            self.assertEqual(len(calls_done), 1)
-            method, (mag_order_id, items,
-                     comment, email, include_comment) = calls_done[0]
-            self.assertEqual(method, 'sales_order_invoice.create')
-            self.assertEqual(mag_order_id, '900000691')
-            self.assertEqual(items, {'1713': 1.0, '1714': 1.0})
-            self.assertEqual(comment, _("Invoice Created"))
-            self.assertEqual(email, True)
-            self.assertFalse(include_comment)
+            self.assertEqual(len(calls_done), 0)
 
-        self.assertEquals(len(self.invoice.magento_bind_ids), 1)
-        binding = self.invoice.magento_bind_ids
-        self.assertEquals(binding.magento_id, '987654321')
+        # Due to customizations, no Magento invoice record is created
+        self.assertEquals(len(self.invoice.magento_bind_ids), 0)

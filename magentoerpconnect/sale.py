@@ -23,6 +23,7 @@ import logging
 import xmlrpclib
 from datetime import datetime, timedelta
 import openerp.addons.decimal_precision as dp
+from openerp.exceptions import Warning as UserError
 from openerp import models, fields, api, _
 from openerp.addons.connector.connector import ConnectorUnit
 from openerp.addons.connector.session import ConnectorSession
@@ -680,8 +681,24 @@ class SaleOrderImporter(MagentoImporter):
         child_items = {}  # key is the parent item id
         top_items = []
 
+        prefix = self.env['ir.config_parameter'].get_param(
+            'outlet_product_prefix')
+        is_pre_order = resource.get('extension_attributes', {}).get(
+            'is_pre_order')
         # Group the childs with their parent
         for item in resource['items']:
+            # Pre-order customizations
+            if item.get('sku') and item['sku'].startswith('PRE-ORDER'):
+                item['sku'] = 'PRE-ORDER'
+            # Outlet products mapping
+            elif prefix and item.get('sku') and \
+                    item.get('sku').startswith(prefix+'-'):
+                suffix = item.get('sku').split('-')[-1]
+                item['outlet_route_hint'] = suffix
+                item['sku'] = item['sku'][len(prefix) + 1:-(len(suffix) + 1)]
+            if is_pre_order:
+                item['is_pre_order'] = True
+            # End of pre-order customizations
             if item.get('parent_item_id'):
                 child_items.setdefault(item['parent_item_id'], []).append(item)
             elif item.get('parent_item'):  # 2.0
@@ -695,7 +712,7 @@ class SaleOrderImporter(MagentoImporter):
             if top_item['item_id'] in child_items:
                 item_modified = self._merge_sub_items(
                     top_item['product_type'], top_item,
-                    child_items[top_item['item_id']])
+                    child_items[top_item['item_id']], resource)
                 if not isinstance(item_modified, list):
                     item_modified = [item_modified]
                 all_items.extend(item_modified)
@@ -704,7 +721,7 @@ class SaleOrderImporter(MagentoImporter):
         resource['items'] = all_items
         return resource
 
-    def _merge_sub_items(self, product_type, top_item, child_items):
+    def _merge_sub_items(self, product_type, top_item, child_items, resource):
         """
         Manage the sub items of the magento sale order lines. A top item
         contains one or many child_items. For some product types, we
@@ -727,10 +744,41 @@ class SaleOrderImporter(MagentoImporter):
             # information is empty, but contains the right sku and
             # product_id. So the real product_id and the sku and the name
             # have to be extracted from the child
-            for field in ['sku', 'product_id', 'name']:
-                item[field] = child_items[0][field]
+            # -- custom: price fields are included in the child. Also, there
+            # sometimes are empty values in the child that we don't want to
+            # take (e.g. base_row_total)
+            for field in [
+                    'sku', 'product_id', 'name', 'base_price',
+                    'base_price_incl_tax', 'base_row_invoiced',
+                    'base_row_total', 'base_row_total_incl_tax',
+                    'base_tax_amount', 'base_tax_invoiced',
+                    'parent_item_id', 'price', 'price_incl_tax',
+                    'row_invoiced', 'row_total', 'row_total_incl_tax',
+                    'tax_amount', 'tax_invoiced']:
+                if child_items[0].get(field):
+                    item[field] = child_items[0][field]
+            if child_items[0].get('extension_attributes'):
+                item.setdefault('extension_attributes', {}).update(
+                    child_items[0]['extension_attributes'])
             # Experimental support for configurable products with multiple
             # subitems
+
+            storeview = self._get_storeview(resource)
+            for ch_item in child_items:
+                # Casting as float for pseudo compatiblity with Magento < 2.0,
+                # where these amounts are encoded in string type. This makes
+                # the Magento 1.7 test suite run without errors.
+                if float(ch_item.get('base_row_total_incl_tax') or 0) < 0:
+                    amount = (
+                        ch_item['base_row_total_incl_tax']
+                        if storeview.catalog_price_tax_included
+                        else ch_item['base_row_total'])
+                    if item.get('discount_amount', 0) < -1 * amount:
+                        raise UserError(
+                            'Negative discount line found but not sufficient '
+                            'discount on parent item')
+                    item['discount_amount'] += amount
+
             return [item] + child_items[1:]
         elif product_type == 'bundle':
             return child_items
@@ -1127,6 +1175,55 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
 
     def _get_product_ref(self, record):
         return record['sku']
+
+    @mapping
+    def subscription(self, record):
+        """ Customization. Transfer subscription attributes. Create
+        subscription entries if this is an initial order. Link with
+        existing subscription entries if this is a remainder or fee order.
+        """
+        res = {}
+        refs = record.get('extension_attributes', {}).get('subscription_ids')
+        if refs:
+            _logger.debug(
+                'item_id %s belongs to a subscription or pre order',
+                record['item_id'])
+            link_type = False
+            if record.get('is_virtual') and not record['price'] < 0:
+                if record.get('is_pre_order'):
+                    res['presale_initial'] = True
+                else:
+                    res['subscription_fee'] = True
+                    link_type = 'subscription'
+            else:
+                if record.get('is_pre_order'):
+                    res['presale_remainder'] = True
+                    link_type = 'presale'
+                else:
+                    res['subscription_initial'] = True
+            if link_type:
+                res['subscription_fee_ids'] = []
+                for ref in refs:
+                    subscription = self.env[
+                        'vanmoof.subscription'].sudo().search(
+                        [('name', '=', ref)])
+                    if not subscription:
+                        raise UserError(
+                            'Cannot find %s with reference %s' % (
+                                link_type, ref))
+                    res['subscription_fee_ids'].append((4, subscription.id))
+            else:
+                res['subscription_main_ids'] = []
+                for ref in refs:
+                    subscription = self.env['vanmoof.subscription'].create({
+                        'name': ref})
+                    subscription.create_bike_from_magento(record)
+                    res['subscription_main_ids'].append((4, subscription.id))
+        else:
+            _logger.debug(
+                'item_id %s does not belong to a subscription or pre order',
+                record['item_id'])
+        return res
 
 
 @magento

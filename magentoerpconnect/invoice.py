@@ -230,8 +230,9 @@ class MagentoInvoiceExporter(Exporter):
 MagentoInvoiceSynchronizer = MagentoInvoiceExporter  # deprecated
 
 
-@on_invoice_validated
-@on_invoice_paid
+# Disable this hook because unsubscribing from custom module was unsuccessful
+# @on_invoice_validated
+# @on_invoice_paid
 def invoice_create_bindings(session, model_name, record_id):
     """
     Create a ``magento.account.invoice`` record. This record will then
@@ -265,7 +266,8 @@ def invoice_create_bindings(session, model_name, record_id):
                     'magento_order_id': magento_sale.id})
 
 
-@on_record_create(model_names='magento.account.invoice')
+# Disable this hook because unsubscribing from custom module was unsuccessful
+# @on_record_create(model_names='magento.account.invoice')
 def delay_export_account_invoice(session, model_name, record_id, vals):
     """
     Delay the job to export the magento invoice.
