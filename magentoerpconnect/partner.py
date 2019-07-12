@@ -156,6 +156,11 @@ class MagentoAddress(models.Model):
     is_magento_order_address = fields.Boolean(
         string='Address from a Magento Order',
     )
+    vat_id = fields.Char(
+        string='VAT',
+        help='This is where the VAT numbers is stored for '
+             'Magento 2.0 for billing addresses'
+    )
 
     _sql_constraints = [
         ('openerp_uniq', 'unique(backend_id, openerp_id)',
@@ -465,6 +470,7 @@ class BaseAddressImportMapper(ImportMapper):
               ('telephone', 'phone'),
               ('fax', 'fax'),
               ('company', 'company'),
+              ('vat_id', 'vat_id'),
               ]
 
     @mapping
