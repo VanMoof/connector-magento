@@ -744,18 +744,19 @@ class SaleOrderImporter(MagentoImporter):
             # information is empty, but contains the right sku and
             # product_id. So the real product_id and the sku and the name
             # have to be extracted from the child
-            # -- custom: price fields are included in the child. Also, there
-            # sometimes are empty values in the child that we don't want to
-            # take (e.g. base_row_total)
+            #
+            # *However* as per VM customizations on the Magento side, price
+            # fields are *always* included in the child item.
+            # Because the price of the first child item can be zero, we give
+            # up compatibility with standard Magento configurable products
+            # that only have the price on the parent item.
             for field in [
                     'sku', 'product_id', 'name', 'base_price',
-                    'base_price_incl_tax', 'base_row_invoiced',
-                    'base_row_total', 'base_row_total_incl_tax',
-                    'base_tax_amount', 'base_tax_invoiced',
-                    'parent_item_id', 'price', 'price_incl_tax',
-                    'row_invoiced', 'row_total', 'row_total_incl_tax',
-                    'tax_amount', 'tax_invoiced']:
-                if child_items[0].get(field):
+                    'base_price_incl_tax', 'base_row_total',
+                    'base_row_total_incl_tax', 'base_tax_amount',
+                    'parent_item_id', 'price', 'price_incl_tax', 'row_total',
+                    'row_total_incl_tax', 'tax_amount']:
+                if field in child_items[0]:
                     item[field] = child_items[0][field]
             if child_items[0].get('extension_attributes'):
                 item.setdefault('extension_attributes', {}).update(
