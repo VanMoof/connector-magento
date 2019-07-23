@@ -1205,7 +1205,6 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
                 for ref in refs:
                     subscription = self.env['vanmoof.subscription'].create({
                         'name': ref})
-                    subscription.create_bike_from_magento(record)
                     res['subscription_main_ids'].append((4, subscription.id))
         else:
             _logger.debug(
