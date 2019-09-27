@@ -363,7 +363,18 @@ class SaleOrderBatchImport(DelayedBatchImporter):
     _model_name = ['magento.sale.order']
 
     def _import_record(self, record_id, **kwargs):
-        """ Import the record directly """
+        """ Import the record directly.
+        Custom: don't create duplicate jobs due to event based imports. """
+        job = self.env['queue.job'].search([
+            ('func_string', 'like',
+             "import_record('magento.sale.order', %s, %s)" % (
+                 self.backend_record.id, record_id)),
+            ('state', '!=', 'failed')], limit=1)
+        if job:
+            _logger.debug(
+                'Found existing job#%s for order %s of backend %s',
+                job.id, record_id, self.backend_record.id)
+            return False
         return super(SaleOrderBatchImport, self)._import_record(
             record_id, max_retries=0, priority=5)
 

@@ -18,9 +18,11 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
+from datetime import datetime, timedelta
 import mock
 
 from openerp import api
+from openerp.fields import Datetime
 from openerp.modules.registry import RegistryManager
 from openerp.tests.common import get_db_name
 from openerp.addons.connector.connector import ConnectorEnvironment
@@ -28,7 +30,10 @@ from openerp.addons.connector.exception import (
     InvalidDataError,
     RetryableJobError,
 )
+from openerp.addons.connector.queue.job import _unpickle
 from openerp.addons.connector.session import ConnectorSession
+from openerp.addons.magentoerpconnect.connector import get_environment
+from openerp.addons.magentoerpconnect.sale import SaleOrderBatchImport
 from openerp.addons.magentoerpconnect.unit.import_synchronizer import (
     import_batch,
     import_record)
@@ -325,3 +330,52 @@ class TestImportMagentoConcurrentSync(SetUpMagentoSynchronized):
         with mock.patch(fields_path):
             with self.assertRaises(RetryableJobError):
                 importer2.run(1)
+
+
+class TestImportDelay(SetUpMagentoSynchronized):
+    def test_import_delay(self):
+        """ Batch import delay is honoured when importing orders """
+        storeview = self.env['magento.storeview'].search(
+            [('backend_id', '=', self.backend_id)], limit=1)
+        max_job_id = self.env['queue.job'].search(
+            [], order='id desc', limit=1).id or 0
+        self.env['magento.backend'].browse(
+            self.backend_id).batch_import_delay = 35
+        storeview.import_orders_from_date = datetime.now() - timedelta(hours=2)
+        storeview.import_sale_orders()
+        _35_minutes_ago = datetime.now() - timedelta(minutes=35)
+        _36_minutes_ago = datetime.now() - timedelta(minutes=36)
+        self.assertTrue(
+            _36_minutes_ago < Datetime.from_string(
+                storeview.import_orders_from_date) < _35_minutes_ago)
+        job = self.env['queue.job'].search([('id', '>', max_job_id)])
+        self.assertTrue(job)
+        _name, args, _kwargs = _unpickle(job.func)
+        self.assertTrue(_36_minutes_ago < args[2]['to_date'] < _35_minutes_ago)
+
+
+class TestNoDuplicateOrderImports(SetUpMagentoSynchronized):
+    def test_no_duplicate_orders(self):
+        """ No duplicate import jobs are created except for failed imports """
+        session = ConnectorSession.from_env(self.env)
+        env = get_environment(
+            session, 'magento.sale.order', self.backend_id)
+        importer = env.get_connector_unit(SaleOrderBatchImport)
+        max_job_id = self.env['queue.job'].search(
+            [], order='id desc', limit=1).id or 0
+        magento_id = 999999
+        importer._import_record(magento_id)
+        job = self.env['queue.job'].search(
+            [('id', '>', max_job_id), ('func_string', 'like', magento_id)])
+        self.assertEqual(len(job), 1)
+
+        importer._import_record(magento_id)
+        job = self.env['queue.job'].search(
+            [('id', '>', max_job_id), ('func_string', 'like', magento_id)])
+        self.assertEqual(len(job), 1)
+
+        job.state = 'failed'
+        importer._import_record(magento_id)
+        job = self.env['queue.job'].search(
+            [('id', '>', max_job_id), ('func_string', 'like', magento_id)])
+        self.assertEqual(len(job), 2)

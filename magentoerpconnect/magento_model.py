@@ -193,6 +193,9 @@ class MagentoBackend(models.Model):
              "level. "
              "When import partner, ignore company_id if this flag is set.",
     )
+    batch_import_delay = fields.Integer(
+        help="Don't import orders created less than ... minutes ago.",
+        default=0)
 
     _sql_constraints = [
         ('sale_prefix_uniq', 'unique(sale_prefix)',
@@ -588,6 +591,7 @@ class MagentoStoreview(models.Model):
 
     @api.multi
     def import_sale_orders(self):
+        """ Custom: apply import delay """
         import_start_time = datetime.now()
         for storeview in self:
             user_id = storeview.sudo().warehouse_id.company_id.\
@@ -606,13 +610,17 @@ class MagentoStoreview(models.Model):
                 from_date = from_string(storeview.import_orders_from_date)
             else:
                 from_date = None
+            to_date = import_start_time - timedelta(
+                minutes=storeview.backend_id.batch_import_delay)
+            if from_date and to_date < from_date:
+                continue
             sale_order_import_batch.delay(
                 session,
                 'magento.sale.order',
                 backend_id,
                 {'magento_storeview_id': storeview.magento_id,
                  'from_date': from_date,
-                 'to_date': import_start_time},
+                 'to_date': to_date},
                 priority=1)  # executed as soon as possible
         # Records from Magento are imported based on their `created_at`
         # date.  This date is set on Magento at the beginning of a
@@ -624,9 +632,9 @@ class MagentoStoreview(models.Model):
         # but this is not a big deal because the sales orders will be
         # imported the first time and the jobs will be skipped on the
         # subsequent imports
-        next_time = import_start_time - timedelta(seconds=IMPORT_DELTA_BUFFER)
-        next_time = fields.Datetime.to_string(next_time)
-        self.write({'import_orders_from_date': next_time})
+            next_time = to_date - timedelta(seconds=IMPORT_DELTA_BUFFER)
+            next_time = fields.Datetime.to_string(next_time)
+            storeview.write({'import_orders_from_date': next_time})
         return True
 
 
