@@ -12,6 +12,7 @@
                     <group>
                         <group string="Magento Parameters">
                             <field name="magento_company_user_id"/>
+                            <field name="magento_batch_import_delay"/>
                         </group>
                     </group>
                 </page>

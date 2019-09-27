@@ -14,3 +14,6 @@ class ResCompany(models.Model):
         help="The user attached to the company use to import sale order",
         domain="[('company_id', '=', id)]"
     )
+    magento_batch_import_delay = fields.Integer(
+        help="Don't import orders created less than ... minutes ago.",
+        default=0)
