@@ -21,9 +21,12 @@
 
 import logging
 import xmlrpclib
+import threading
 from datetime import datetime, timedelta
+from openerp.sql_db import db_connect
 import openerp.addons.decimal_precision as dp
-from openerp.exceptions import Warning as UserError
+from openerp.exceptions import ValidationError, Warning as UserError
+from openerp.addons.connector.exception import RetryableJobError
 from openerp import models, fields, api, _
 from openerp.addons.connector.connector import ConnectorUnit
 from openerp.addons.connector.session import ConnectorSession
@@ -1213,6 +1216,39 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
                             'Cannot find %s with reference %s' % (
                                 link_type, ref))
                     res['subscription_fee_ids'].append((4, subscription.id))
+
+                    # rerouting queue job
+                    company = subscription.initial_sale_order.company_id
+                    user = subscription.initial_sale_order.create_uid
+                    if (company and company != self.env.user.company_id):
+                        func = "import_record('magento.sale.order', 1, %s)" % (
+                            record['order_id'])
+                        jobs = self.env['queue.job'].search(
+                            [('func_string', 'like', func),
+                             ('state', '=', 'started')])
+                        if not jobs:
+                            raise ValidationError(
+                                'Company mismatch but no job found for magento '
+                                'order %s/%s' % (
+                                    subscription.initial_sale_order.name,
+                                    record['order_id']))
+                        conn = db_connect(self.env.cr.dbname)
+                        cr = conn.cursor()
+                        cr.execute(
+                            """ UPDATE queue_job
+                            SET company_id = %s, user_id = %s
+                            WHERE id IN %s """,
+                            (company.id, user.id, tuple(jobs.ids, )))
+                        if not getattr(threading.currentThread(), 'testing',
+                                       False):
+                            cr.commit()
+                            self.env.cr.rollback()
+                        cr.close()
+                        # Don't change this message text (see models/queue_job.py)
+                        raise RetryableJobError(
+                            'Rerouting order %s/%s to company %s' % (
+                                subscription.initial_sale_order.name,
+                                record['order_id'], company.id), seconds=1)
             else:
                 res['subscription_main_ids'] = []
                 for ref in refs:
