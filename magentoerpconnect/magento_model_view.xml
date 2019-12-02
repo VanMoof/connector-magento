@@ -45,6 +45,7 @@
                         </group>
                         <group name="main_configuration" string="Main Configuration">
                             <field name="warehouse_id"/>
+                            <field name="batch_import_delay"/>
                         </group>
                         <notebook>
                             <page name="import" string="Imports">
