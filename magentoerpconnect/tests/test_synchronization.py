@@ -238,8 +238,22 @@ class TestImportMagento(SetUpMagentoSynchronized):
         # customization
         self.assertAlmostEqual(price_unit, 41.0500)
 
+    def crete_next_fiscalyear_and_periods(self):
+        fiscalyear_obj = self.env['account.fiscalyear']
+        year = str(datetime.now().year + 1)
+        for company in self.env['res.company'].search([]):
+            fiscalyear_id = fiscalyear_obj.create({
+                'name': year,
+                'code': year,
+                'date_start': year + '-01-01',
+                'date_stop': year + '-12-31',
+                'company_id': company.id
+            })
+            fiscalyear_id.create_period()
+
     def test_import_sale_order_with_taxes_included(self):
         """ Import sale order with taxes included """
+        self.crete_next_fiscalyear_and_periods()
         backend_id = self.backend_id
         storeview_model = self.env['magento.storeview']
         storeview = storeview_model.search([('backend_id', '=', backend_id),
@@ -262,6 +276,7 @@ class TestImportMagento(SetUpMagentoSynchronized):
 
     def test_import_sale_order_with_discount(self):
         """ Import sale order with discounts"""
+        self.crete_next_fiscalyear_and_periods()
         backend_id = self.backend_id
         storeview_model = self.env['magento.storeview']
         storeview = storeview_model.search([('backend_id', '=', backend_id),
