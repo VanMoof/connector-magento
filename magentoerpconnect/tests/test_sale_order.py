@@ -20,6 +20,7 @@
 ##############################################################################
 
 import mock
+from datetime import datetime
 from openerp.addons.magentoerpconnect.unit.import_synchronizer import (
     import_record)
 import openerp.tests.common as common
@@ -233,8 +234,22 @@ class TestSaleOrder(SetUpMagentoSynchronized):
             self.assertEqual(magento_id, binding.magento_id)
             self.assertEqual(state, 'pending')
 
+    def crete_next_fiscalyear_and_periods(self):
+        fiscalyear_obj = self.env['account.fiscalyear']
+        year = str(datetime.now().year + 1)
+        for company in self.env['res.company'].search([]):
+            fiscalyear_id = fiscalyear_obj.create({
+                'name': year,
+                'code': year,
+                'date_start': year + '-01-01',
+                'date_stop': year + '-12-31',
+                'company_id': company.id
+            })
+            fiscalyear_id.create_period()
+
     def test_import_edited(self):
         """ Import of an edited sale order links to its parent """
+        self.crete_next_fiscalyear_and_periods()
         binding = self._import_sale_order(900000691)
         new_binding = self._import_sale_order('900000691-1')
         self.assertEqual(new_binding.magento_parent_id, binding)
