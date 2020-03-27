@@ -20,9 +20,18 @@ class MagentoStoreviewImportMapper(Component):
 
     @mapping
     def store_id(self, record):
+        """ Bind to 'group_id' (Magento 1.x) or 'store_group_id' """
         binder = self.binder_for(model='magento.store')
-        binding = binder.to_internal(record['group_id'])
+        group_id = record.get('store_group_id') or record['group_id']
+        binding = binder.to_internal(group_id)
         return {'store_id': binding.id}
+
+    @mapping
+    def lang_id(self, record):
+        if self.collection.version == '2.0':
+            lang = self.env['res.lang'].search(
+                [('code', '=', record['locale'])])
+            return {'lang_id': lang.id}
 
 
 class StoreviewImporter(Component):

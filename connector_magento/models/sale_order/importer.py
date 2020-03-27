@@ -426,7 +426,11 @@ class SaleOrderImporter(Component):
             # have to be extracted from the child
             for field in ['sku', 'product_id', 'name']:
                 item[field] = child_items[0][field]
-            return item
+            # Experimental support for configurable products with multiple
+            # subitems
+            return [item] + child_items[1:]
+        elif product_type == 'bundle':
+            return child_items
         return top_item
 
     def _import_customer_group(self, group_id):
@@ -554,7 +558,7 @@ class SaleOrderImporter(Component):
 
             customer_record = {
                 'firstname': address['firstname'],
-                'middlename': address['middlename'],
+                'middlename': address.get('middlename'),
                 'lastname': address['lastname'],
                 'prefix': address.get('prefix'),
                 'suffix': address.get('suffix'),
@@ -621,8 +625,18 @@ class SaleOrderImporter(Component):
         billing_id = create_address(record['billing_address'])
 
         shipping_id = None
-        if record['shipping_address']:
-            shipping_id = create_address(record['shipping_address'])
+
+        if self.collection.version == '1.7':
+            shipping_address = record['shipping_address']
+        else:
+            # Magento 2.x allows for a different shipping address per line.
+            # For now, we just take the first
+            shippings = self.magento_record[
+                'extension_attributes']['shipping_assignments']
+            shipping_address = shippings[0]['shipping'].get(
+                'address') if shippings else None
+        if shipping_address:
+            shipping_id = create_address(shipping_address)
 
         self.partner_id = partner.id
         self.partner_invoice_id = billing_id
@@ -671,7 +685,11 @@ class SaleOrderImporter(Component):
         for line in record.get('items', []):
             _logger.debug('line: %s', line)
             if 'product_id' in line:
-                self._import_dependency(line['product_id'],
+                if self.collection.version == '1.7':
+                    key = 'product_id'
+                else:
+                    key = 'sku'
+                self._import_dependency(line[key],
                                         'magento.product.product')
 
 
@@ -703,14 +721,38 @@ class SaleOrderLineImportMapper(Component):
     @mapping
     def product_id(self, record):
         binder = self.binder_for('magento.product.product')
-        product = binder.to_internal(record['product_id'], unwrap=True)
+        if self.collection.version == '1.7':
+            key = 'product_id'
+        else:
+            key = 'sku'
+        product = binder.to_internal(record[key], unwrap=True)
         assert product, (
             "product_id %s should have been imported in "
-            "SaleOrderImporter._import_dependencies" % record['product_id'])
+            "SaleOrderImporter._import_dependencies" % record[key])
         return {'product_id': product.id}
 
     @mapping
     def product_options(self, record):
+        if self.collection.version == '2.0':
+            # Product options look like this in Magento 2.0, so we'd have to
+            # fetch the labels separately -> TODO
+            # 'product_option': {
+            #     'extension_attributes': {
+            #         'configurable_item_options': [
+            #             {'option_id': '152',
+            #              'option_value': 5593},
+            #             {'option_id': '93', 'option_value': 5477}
+            #         ]
+            #     }
+            # }
+            if record.get('product_option', {}).get(
+                    'extension_attributes', {}).get(
+                        'configurable_item_options'):
+                _logger.debug(
+                    'Magento order#%s contains a product with configurable '
+                    'options but their import is not supported yet for '
+                    'Magento2')
+            return
         result = {}
         ifield = record['product_options']
         if ifield:
@@ -729,10 +771,12 @@ class SaleOrderLineImportMapper(Component):
 
     @mapping
     def price(self, record):
+        """ In Magento 2, base_row_total_incl_tax may not be present
+        if no taxes apply """
         result = {}
         base_row_total = float(record['base_row_total'] or 0.)
-        base_row_total_incl_tax = float(record['base_row_total_incl_tax'] or
-                                        0.)
+        base_row_total_incl_tax = float(
+            record.get('base_row_total_incl_tax') or base_row_total)
         qty_ordered = float(record['qty_ordered'])
         if self.options.tax_include:
             result['price_unit'] = base_row_total_incl_tax / qty_ordered

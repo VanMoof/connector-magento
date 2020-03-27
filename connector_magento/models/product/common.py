@@ -183,11 +183,15 @@ class ProductProductAdapter(Component):
     _apply_on = 'magento.product.product'
 
     _magento_model = 'catalog_product'
+    _magento2_model = 'products'
+    _magento2_search = 'products'
+    _magento2_key = 'sku'
     _admin_path = '/{model}/edit/id/{id}'
 
-    def _call(self, method, arguments):
+    def _call(self, method, arguments, http_method=None):
         try:
-            return super(ProductProductAdapter, self)._call(method, arguments)
+            return super(ProductProductAdapter, self)._call(
+                method, arguments, http_method=http_method)
         except xmlrpc.client.Fault as err:
             # this is the error in the Magento API
             # when the product does not exist
@@ -211,10 +215,12 @@ class ProductProductAdapter(Component):
         if to_date is not None:
             filters.setdefault('updated_at', {})
             filters['updated_at']['to'] = to_date.strftime(dt_fmt)
-        # TODO add a search entry point on the Magento API
-        return [int(row['product_id']) for row
-                in self._call('%s.list' % self._magento_model,
-                              [filters] if filters else [{}])]
+        if self.collection.version == '1.7':
+            # TODO add a search entry point on the Magento API
+            return [int(row['product_id']) for row
+                    in self._call('%s.list' % self._magento_model,
+                                  [filters] if filters else [{}])]
+        return super(ProductProductAdapter, self).search(filters=filters)
 
     def read(self, external_id, storeview_id=None, attributes=None):
         """ Returns the information of a record
@@ -222,29 +228,55 @@ class ProductProductAdapter(Component):
         :rtype: dict
         """
         # pylint: disable=method-required-super
-        return self._call('ol_catalog_product.info',
-                          [int(external_id), storeview_id, attributes, 'id'])
+        if self.collection.version == '1.7':
+            return self._call(
+                'ol_catalog_product.info',
+                [int(external_id), storeview_id, attributes, 'id'])
+        # TODO: storeview context in Magento 2.0
+        res = super(ProductProductAdapter, self).read(
+            external_id, attributes=attributes)
+        if res:
+            for attr in res.get('custom_attributes', []):
+                res[attr['attribute_code']] = attr['value']
+        return res
 
     def write(self, external_id, data, storeview_id=None):
         """ Update records on the external system """
         # pylint: disable=method-required-super
         # XXX actually only ol_catalog_product.update works
         # the PHP connector maybe breaks the catalog_product.update
-        return self._call('ol_catalog_product.update',
-                          [int(external_id), data, storeview_id, 'id'])
+        if self.collection.version == '1.7':
+            return self._call('ol_catalog_product.update',
+                              [int(external_id), data, storeview_id, 'id'])
+        raise NotImplementedError  # TODO
 
-    def get_images(self, external_id, storeview_id=None):
-        return self._call('product_media.list',
-                          [int(external_id), storeview_id, 'id'])
+    def get_images(self, external_id, storeview_id=None, data=None):
+        """ Fetch image metadata either by querying Magento 1.x, or extracting
+        it from the product data for Magento 2.x """
+        if self.collection.version == '1.7':
+            return self._call('product_media.list',
+                              [int(external_id), storeview_id, 'id'])
+        res = []
+        for entry in data.get('media_gallery_entries', []):
+            if entry['media_type'] == 'image':
+                entry['url'] = '%s/media/catalog/product/%s' % (
+                    self.backend_record.location, entry['file'])
+                res.append(entry)
+        return res
 
     def read_image(self, external_id, image_name, storeview_id=None):
-        return self._call('product_media.info',
-                          [int(external_id), image_name, storeview_id, 'id'])
+        if self.collection.version == '1.7':
+            return self._call(
+                'product_media.info',
+                [int(external_id), image_name, storeview_id, 'id'])
+        raise NotImplementedError  # TODO
 
     def update_inventory(self, external_id, data):
-        # product_stock.update is too slow
-        return self._call('oerp_cataloginventory_stock_item.update',
-                          [int(external_id), data])
+        if self.collection.version == '1.7':
+            # product_stock.update is too slow
+            return self._call('oerp_cataloginventory_stock_item.update',
+                              [int(external_id), data])
+        raise NotImplementedError  # TODO
 
 
 class MagentoBindingProductListener(Component):

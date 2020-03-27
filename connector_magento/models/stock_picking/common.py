@@ -53,6 +53,8 @@ class MagentoStockPicking(models.Model):
         with self.backend_id.work_on(self._name) as work:
             exporter = work.component(usage='record.exporter')
             res = exporter.run(self)
+            if self.backend_id.version == '2.0':
+                return res  # TODO export tracking for Magento 2.0
             if with_tracking and self.carrier_tracking_ref:
                 self.with_delay().export_tracking_number()
             return res
@@ -76,9 +78,10 @@ class StockPickingAdapter(Component):
     _magento_model = 'sales_order_shipment'
     _admin_path = 'sales_shipment/view/shipment_id/{id}'
 
-    def _call(self, method, arguments):
+    def _call(self, method, arguments, http_method=None):
         try:
-            return super(StockPickingAdapter, self)._call(method, arguments)
+            return super(StockPickingAdapter, self)._call(
+                method, arguments, http_method=http_method)
         except xmlrpc.client.Fault as err:
             # this is the error in the Magento API
             # when the shipment does not exist
