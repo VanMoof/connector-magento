@@ -757,6 +757,19 @@ class SaleOrderImporter(MagentoImporter):
                     'tax_amount', 'tax_invoiced']:
                 if child_items[0].get(field):
                     item[field] = child_items[0][field]
+
+            if item.get('discount_amount'):
+                # Apply the discount amount on the first item
+                for field in ('row_total', 'row_total_incl_tax'):
+                    if item.get(field):
+                        item[field] = (
+                            float(item[field]) -
+                            float(item['discount_amount']))
+                    if item.get('base_' + field):
+                        item['base_' + field] = (
+                            float(item['base_' + field]) -
+                            float(item['base_discount_amount']))
+
             if child_items[0].get('extension_attributes'):
                 item.setdefault('extension_attributes', {}).update(
                     child_items[0]['extension_attributes'])
