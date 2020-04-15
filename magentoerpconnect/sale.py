@@ -773,18 +773,6 @@ class SaleOrderImporter(MagentoImporter):
                 if field in child_items[0]:
                     item[field] = child_items[0][field]
 
-            if item.get('discount_amount'):
-                # Apply the discount amount on the first item
-                for field in ('row_total', 'row_total_incl_tax'):
-                    if item.get(field):
-                        item[field] = (
-                            float(item[field]) -
-                            float(item['discount_amount']))
-                    if item.get('base_' + field):
-                        item['base_' + field] = (
-                            float(item['base_' + field]) -
-                            float(item['base_discount_amount']))
-
             if child_items[0].get('extension_attributes'):
                 item.setdefault('extension_attributes', {}).update(
                     child_items[0]['extension_attributes'])
@@ -806,6 +794,36 @@ class SaleOrderImporter(MagentoImporter):
                             'Negative discount line found but not sufficient '
                             'discount on parent item')
                     item['discount_amount'] += amount
+
+            def apply_discount(it, disc, base_disc):
+                """ Apply the discount amount on the given item, maxing out
+                on the total amount of the line so that a 100% procent
+                discount is distributed evenly.
+                """
+                total = float(
+                    it.get('row_total_incl_tax') or it['row_total'] or 0)
+                base_total = float(
+                    it.get('base_row_total_incl_tax') or
+                    it['base_row_total'] or 0)
+                discount = max(0, min(total, disc))
+                base_discount = max(0, min(base_total, base_disc))
+
+                for field in ('row_total', 'row_total_incl_tax'):
+                    if it.get(field):
+                        item[field] = (float(item[field]) - discount)
+                    if it.get('base_' + field):
+                        item['base_' + field] = (
+                            float(item['base_' + field]) - base_discount)
+                disc -= discount
+                base_disc -= base_discount
+                return disc, base_disc
+
+            disc = item.get('discount_amount') or 0
+            base_disc = item.get('base_discount_amount') or 0
+            for sub in [item] + child_items[1:]:
+                if disc <= 0 or base_disc <= 0:
+                    break
+                disc, base_disc = apply_discount(sub, disc, base_disc)
 
             return [item] + child_items[1:]
         elif product_type == 'bundle':
