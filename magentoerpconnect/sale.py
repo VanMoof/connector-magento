@@ -1081,8 +1081,9 @@ class SaleOrderLineImportMapper(ImportMapper):
         result = {}
         discount_amount = float(record['base_discount_amount'] or 0)
         base_row_total = float(record['base_row_total'] or 0.)
-        base_row_total_incl_tax = float(
-            record.get('base_row_total_incl_tax') or base_row_total)
+        base_row_total_incl_tax = (
+            float(record['base_row_total_incl_tax'] or 0)
+            if 'base_row_total_incl_tax' in record else base_row_total)
         qty_ordered = float(record['qty_ordered'])
         if self.options.tax_include:
             total = base_row_total_incl_tax
