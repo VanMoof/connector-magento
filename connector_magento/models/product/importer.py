@@ -170,6 +170,7 @@ class ProductImportMapper(Component):
 
     # TODO :     categ, special_price => minimal_price
     direct = [('name', 'name'),
+              ('id', 'magento_internal_id'),
               ('description', 'description'),
               ('weight', 'weight'),
               ('cost', 'standard_price'),

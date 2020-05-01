@@ -41,6 +41,8 @@ class PartnerCategoryAdapter(Component):
     _magento2_search = 'customerGroups/search'
     _magento2_key = 'id'
     _admin_path = '/customer_group/edit/id/{id}'
+    # Not valid without security key
+    # _admin2_path = '/customer/group/edit/id/{id}'
 
     def search(self, filters=None):
         """ Search records according to some criterias

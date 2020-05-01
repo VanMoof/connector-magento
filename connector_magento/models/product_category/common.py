@@ -54,6 +54,8 @@ class ProductCategoryAdapter(Component):
     _magento2_model = 'categories'
     _magento2_key = 'id'
     _admin_path = '/{model}/index/'
+    # Not valid without security key
+    # _admin2_path = '/catalog/category/index/'
 
     def _call(self, method, arguments):
         try:

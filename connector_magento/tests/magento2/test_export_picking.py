@@ -1,17 +1,19 @@
 # Copyright 2014-2019 Camptocamp SA
+# Copyright 2020 Opener B.V.
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html)
 
-from .common import MagentoSyncTestCase, recorder
+import json
+from .common import Magento2SyncTestCase, recorder
 
 
-class TestExportPicking(MagentoSyncTestCase):
+class TestExportPicking(Magento2SyncTestCase):
     """ Test the export of pickings to Magento """
 
     def setUp(self):
         super(TestExportPicking, self).setUp()
         # import a sales order
         self.order_binding = self._import_record(
-            'magento.sale.order', 100000201
+            'magento.sale.order', '12',
         )
         self.order_binding.ignore_exception = True
         # generate sale's picking
@@ -86,18 +88,19 @@ class TestExportPicking(MagentoSyncTestCase):
                 'test_export_picking_complete') as cassette:
             picking_binding.export_picking_done(with_tracking=False)
 
-        # 1. login, 2. sales_order_shipment.create,
-        # 3. endSession
-        self.assertEqual(3, len(cassette.requests))
-
+        self.assertEqual(1, len(cassette.requests))
         self.assertEqual(
-            ('sales_order_shipment.create',
-             ['100000201', {}, 'Shipping Created', True, True]),
-            self.parse_cassette_request(cassette.requests[1].body)
-        )
+            cassette.requests[0].uri,
+            'http://magento.tulpa.nl/index.php/rest/V1/order/12/ship')
+        self.assertDictEqual(
+            json.loads(cassette.requests[0].body),
+            {"items": [
+                {"order_item_id": "24", "qty": 1.0},
+                {"order_item_id": "25", "qty": 1.0},
+            ]})
 
         # Check that we have received and bound the magento ID
-        self.assertEqual(picking_binding.external_id, '987654321')
+        self.assertEqual(picking_binding.external_id, '3')
 
     def test_export_partial_picking_trigger(self):
         """ Trigger export of a partial picking """
@@ -155,6 +158,7 @@ class TestExportPicking(MagentoSyncTestCase):
             self.env['stock.backorder.confirmation'].create(
                 {'pick_ids': [(4, self.picking.id)]}).process()
             self.assertEqual(self.picking.state, 'done')
+
             picking_binding = self.env['magento.stock.picking'].search(
                 [('odoo_id', '=', self.picking.id),
                  ('backend_id', '=', self.backend.id)],
@@ -165,18 +169,17 @@ class TestExportPicking(MagentoSyncTestCase):
                 'test_export_picking_partial') as cassette:
             picking_binding.export_picking_done(with_tracking=False)
 
-        # 1. login, 2. sales_order_shipment.create,
-        # 3. endSession
-        self.assertEqual(3, len(cassette.requests))
-
         self.assertEqual(
-            ('sales_order_shipment.create',
-             ['100000201', {'543': 1.0}, 'Shipping Created', True, True]),
-            self.parse_cassette_request(cassette.requests[1].body)
-        )
+            cassette.requests[0].uri,
+            'http://magento.tulpa.nl/index.php/rest/V1/order/12/ship')
+        self.assertDictEqual(
+            json.loads(cassette.requests[0].body),
+            {"items": [
+                {"order_item_id": "24", "qty": 1.0},
+            ]})
 
         # Check that we have received and bound the magento ID
-        self.assertEqual(picking_binding.external_id, '987654321')
+        self.assertEqual(picking_binding.external_id, '5')
 
     def test_export_tracking_after_done_trigger(self):
         """ Trigger export of a tracking number """
@@ -209,30 +212,34 @@ class TestExportPicking(MagentoSyncTestCase):
         with self.mock_with_delay():
             self.env['stock.immediate.transfer'].create(
                 {'pick_ids': [(4, self.picking.id)]}).process()
-            self.assertEqual(self.picking.state, 'done')
-            self.picking.carrier_tracking_ref = 'XYZ'
+        self.assertEqual(self.picking.state, 'done')
+        self.picking.carrier_tracking_ref = 'XYZ'
+        self.order_binding.carrier_id.magento_tracking_title = 'Your shipment'
 
         picking_binding = self.env['magento.stock.picking'].search(
             [('odoo_id', '=', self.picking.id),
              ('backend_id', '=', self.backend.id)],
         )
         self.assertEqual(1, len(picking_binding))
-        picking_binding.external_id = '100000035'
+        picking_binding.external_id = '3'
 
         with recorder.use_cassette(
                 'test_export_tracking_number') as cassette:
             picking_binding.export_tracking_number()
 
-        # 1. login, 2. sales_order_shipment.getCarriers,
-        # 3. sales_order_shipment.addTrack, 4. endSession
-        self.assertEqual(4, len(cassette.requests))
-
+        self.assertEqual(1, len(cassette.requests))
         self.assertEqual(
-            ('sales_order_shipment.getCarriers', ['100000201']),
-            self.parse_cassette_request(cassette.requests[1].body)
-        )
-
+            cassette.requests[0].uri,
+            'http://magento.tulpa.nl/index.php/rest/V1/shipment/track')
         self.assertEqual(
-            ('sales_order_shipment.addTrack', ['100000035', 'ups', '', 'XYZ']),
-            self.parse_cassette_request(cassette.requests[2].body)
-        )
+            json.loads(cassette.requests[0].body),
+            {'entity': {
+                'order_id': '12',
+                'parent_id': '3',
+                'weight': 0,
+                'qty': 1,
+                'description': 'WH/OUT/00082',
+                'track_number': 'XYZ',
+                'title': 'Your shipment',
+                'carrier_code': 'tablerate',
+            }})

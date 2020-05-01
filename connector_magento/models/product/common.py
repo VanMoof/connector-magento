@@ -12,6 +12,8 @@ from odoo.addons.connector.exception import IDMissingInBackend
 from odoo.addons.component.core import Component
 from odoo.addons.component_event import skip_if
 from odoo.addons.queue_job.job import job, related_action
+from odoo.exceptions import UserError
+from odoo.tools.translate import _
 from ...components.backend_adapter import MAGENTO_DATETIME_FORMAT
 
 _logger = logging.getLogger(__name__)
@@ -45,6 +47,11 @@ class MagentoProductProduct(models.Model):
                               string='Product',
                               required=True,
                               ondelete='restrict')
+    magento_internal_id = fields.Char(
+        help=(
+            'In Magento2, we have to keep track of both the external_id (the '
+            'product SKU) which is used in the Magento2 REST API, as well as '
+            'the Magento internal id as used in the admin URL.'))
     # XXX website_ids can be computed from categories
     website_ids = fields.Many2many(comodel_name='magento.website',
                                    string='Websites',
@@ -166,6 +173,22 @@ class MagentoProductProduct(models.Model):
         """
         return product[stock_field]
 
+    @api.model
+    def _get_admin_path(self, backend, external_id):
+        """ In Magento2, we can only link to the product when we have already
+        imported it """
+        if backend.version == '1.7':
+            return '/{model}/edit/id/{id}'
+        magento_internal_id = self.search(
+            [('backend_id', '=', backend.id),
+             ('external_id', '=', external_id)],
+            limit=1).magento_internal_id
+        if magento_internal_id:
+            return 'catalog/product/edit/id/%s' % magento_internal_id
+        raise UserError(_(
+            'We have to import the product before we can provide the admin '
+            'link to it.'))
+
 
 class ProductProduct(models.Model):
     _inherit = 'product.product'
@@ -272,11 +295,29 @@ class ProductProductAdapter(Component):
         raise NotImplementedError  # TODO
 
     def update_inventory(self, external_id, data):
+        """ Update the default stock. For Magento2, first retrieve the stock
+        item that applies to this stock for the product. """
         if self.collection.version == '1.7':
             # product_stock.update is too slow
             return self._call('oerp_cataloginventory_stock_item.update',
                               [int(external_id), data])
-        raise NotImplementedError  # TODO
+
+        # Magento2
+        data = {'stockItem': data}
+        res = self._call('stockItems/%s' % external_id, None)
+        if isinstance(res, dict):
+            res = [res]
+        item_id = 0
+        for item in res:
+            if item['stock_id'] == 1:
+                item_id = item['item_id']
+                break
+        else:
+            raise ValueError(
+                'No stock item found for product %s for default stock_id 1' %
+                external_id)
+        self._call('products/%s/stockItems/%s' % (external_id, item_id),
+                   data, http_method='put')
 
 
 class MagentoBindingProductListener(Component):

@@ -78,7 +78,12 @@ class Magento2Client(object):
             kwargs['params'] = arguments
         elif arguments is not None:
             kwargs['json'] = arguments
-        res = function(url, **kwargs)
+        try:
+            res = function(url, **kwargs)
+        except ValueError:
+            # FIXME to remove after development # TODO
+            import pdb
+            pdb.set_trace()
         if (res.status_code == 400 and res._content):
             raise requests.HTTPError(
                 url, res.status_code, res._content, headers, __name__)
@@ -108,7 +113,6 @@ class MagentoAPI(object):
                 )
                 api.__enter__()
             else:
-                # TODO MAGE2: get token for username/password
                 api = Magento2Client(
                     self._location.location,
                     self._location.token,
@@ -234,6 +238,7 @@ class GenericAdapter(AbstractComponent):
     _magento2_search = None
     _magento2_key = None
     _admin_path = None
+    _admin2_path = None
 
     @staticmethod
     def get_searchCriteria(filters):
@@ -371,16 +376,21 @@ class GenericAdapter(AbstractComponent):
         raise NotImplementedError
 
     def admin_url(self, external_id):
-        """ Return the URL in the Magento admin for a record
-        TODO: Magento 2.x """
-        if self._admin_path is None:
-            raise ValueError('No admin path is defined for this record')
+        """ Return the URL in the Magento admin for a record """
         backend = self.backend_record
         url = backend.admin_location
         if not url:
             raise ValueError('No admin URL configured on the backend.')
-        path = self._admin_path.format(model=self._magento_model,
-                                       id=external_id)
+        if hasattr(self.model, '_get_admin_path'):
+            admin_path = getattr(self.model, '_get_admin_path')(
+                backend, external_id)
+        else:
+            key = '_admin2_path' if backend.version == '2.0' else '_admin_path'
+            admin_path = getattr(self, key)
+        if admin_path is None:
+            raise ValueError('No admin path is defined for this record')
+        path = admin_path.format(model=self._magento_model,
+                                 id=external_id)
         url = url.rstrip('/')
         path = path.lstrip('/')
         url = '/'.join((url, path))

@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      User-Agent: [python-requests/2.19.1]
+    method: GET
+    uri: http://magento.tulpa.nl/index.php/rest/V1/categories/1
+  response:
+    body: {string: '{"id":1,"parent_id":0,"name":"Root Catalog","position":0,"level":0,"children":"2","created_at":"2020-03-27
+        15:25:28","updated_at":"2020-04-24 10:01:36","path":"1","available_sort_by":[],"include_in_menu":true,"custom_attributes":[{"attribute_code":"path","value":"1"},{"attribute_code":"children_count","value":"40"}]}'}
+    headers:
+      Cache-Control: ['no-store, no-cache, must-revalidate']
+      Connection: [keep-alive]
+      Content-Type: [application/json; charset=utf-8]
+      Date: ['Fri, 24 Apr 2020 10:02:45 GMT']
+      Expires: ['Thu, 19 Nov 1981 08:52:00 GMT']
+      Pragma: [no-cache]
+      Server: [nginx/1.14.0 (Ubuntu)]
+      Set-Cookie: ['PHPSESSID=dqqc3kvvausgmret6t8mjv31t7; expires=Fri, 24-Apr-2020
+          11:02:45 GMT; Max-Age=3600; path=/; domain=magento.tulpa.nl; HttpOnly']
+      Transfer-Encoding: [chunked]
+      Vary: [Accept-Encoding]
+      X-Frame-Options: [SAMEORIGIN]
+      content-length: ['318']
+    status: {code: 200, message: OK}
+- request:
+    body: null
+    headers:
+      Accept: ['*/*']
+      Accept-Encoding: ['gzip, deflate']
+      Connection: [keep-alive]
+      User-Agent: [python-requests/2.19.1]
+    method: GET
+    uri: http://magento.tulpa.nl/index.php/rest/V1/categories/1
+  response:
+    body: {string: '{"id":1,"parent_id":0,"name":"Root Catalog","position":0,"level":0,"children":"2","created_at":"2020-03-27
+        15:25:28","updated_at":"2020-04-24 10:01:36","path":"1","available_sort_by":[],"include_in_menu":true,"custom_attributes":[{"attribute_code":"path","value":"1"},{"attribute_code":"children_count","value":"40"}]}'}
+    headers:
+      Cache-Control: ['no-store, no-cache, must-revalidate']
+      Connection: [keep-alive]
+      Content-Type: [application/json; charset=utf-8]
+      Date: ['Fri, 24 Apr 2020 10:02:45 GMT']
+      Expires: ['Thu, 19 Nov 1981 08:52:00 GMT']
+      Pragma: [no-cache]
+      Server: [nginx/1.14.0 (Ubuntu)]
+      Set-Cookie: ['PHPSESSID=trc1eoa2j53v7un2mop9rep16s; expires=Fri, 24-Apr-2020
+          11:02:45 GMT; Max-Age=3600; path=/; domain=magento.tulpa.nl; HttpOnly']
+      Transfer-Encoding: [chunked]
+      Vary: [Accept-Encoding]
+      X-Frame-Options: [SAMEORIGIN]
+      content-length: ['318']
+    status: {code: 200, message: OK}
+version: 1

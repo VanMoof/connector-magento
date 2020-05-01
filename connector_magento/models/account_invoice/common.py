@@ -65,6 +65,8 @@ class AccountInvoiceAdapter(Component):
 
     _magento_model = 'sales_order_invoice'
     _admin_path = 'sales_invoice/view/invoice_id/{id}'
+    # Not valid without security key
+    # _admin2_path = 'sales/order_invoice/view/invoice_id/{id}'
 
     def _call(self, method, arguments, http_method=None):
         try:

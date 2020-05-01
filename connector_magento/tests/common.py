@@ -87,6 +87,7 @@ class MagentoTestCase(SavepointComponentCase):
 
     def setUp(self):
         super(MagentoTestCase, self).setUp()
+        self.recorder = recorder
         # disable commits when run from pytest/nosetest
         odoo.tools.config['test_enable'] = True
 
@@ -95,7 +96,7 @@ class MagentoTestCase(SavepointComponentCase):
         self.backend = self.backend_model.create(
             {'name': 'Test Magento',
              'version': '1.7',
-             'location': 'http://magento',
+             'location': 'http://magento.tulpa.nl',
              'username': 'odoo',
              'warehouse_id': warehouse.id,
              'password': 'odoo42'}
@@ -159,11 +160,14 @@ class MagentoTestCase(SavepointComponentCase):
         filename = 'import_%s_%s' % (table_name[8:], str(magento_id))
 
         def run_import():
+            if self.backend.version != '1.7':
+                return self.env[model_name].import_record(
+                    self.backend, magento_id)
             with mock_urlopen_image():
                 self.env[model_name].import_record(self.backend, magento_id)
 
         if cassette:
-            with recorder.use_cassette(filename):
+            with self.recorder.use_cassette(filename):
                 run_import()
         else:
             run_import()

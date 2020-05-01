@@ -151,6 +151,8 @@ class PartnerAdapter(Component):
     _magento2_model = 'customers'
     _magento2_search = 'customers/search'
     _admin_path = '/{model}/edit/id/{id}'
+    # Not valid without security key
+    # _admin2_path = 'customer/index/edit/id/{id}'
 
     def _call(self, method, arguments):
         try:

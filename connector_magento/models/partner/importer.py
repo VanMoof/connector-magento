@@ -72,7 +72,7 @@ class PartnerImportMapper(Component):
     def customer_group_id(self, record):
         # import customer groups
         if record['group_id'] == 0:
-            category = self.env.ref('magentoerpconnect.category_no_account')
+            category = self.env.ref('connector_magento.category_no_account')
         else:
             binder = self.binder_for(model='magento.res.partner.category')
             category = binder.to_internal(record['group_id'], unwrap=True)
@@ -224,7 +224,8 @@ class PartnerAddressBook(Component):
             # defines if the billing address is merged with the partner
             # or imported as a standalone contact
             merge = False
-            if magento_record.get('is_default_billing'):
+            if (magento_record.get('default_billing')  # Magento 2.x
+                    or magento_record.get('default_billing')):  # Magento 1.x
                 binding_model = self.env['magento.res.partner']
                 partner_binding = binding_model.browse(partner_binding_id)
                 if magento_record.get('company'):
@@ -434,11 +435,28 @@ class AddressImportMapper(Component):
         fields += [
             ('created_at', 'created_at'),
             ('updated_at', 'updated_at'),
-            ('is_default_billing', 'is_default_billing'),
-            ('is_default_shipping', 'is_default_shipping'),
             ('company', 'company'),
         ]
         return fields
+
+    @staticmethod
+    def is_billing(record):
+        return (
+            record.get('default_billing')  # Magento 2.x
+            or record.get('is_default_billing'))  # Magento 1.x
+
+    @staticmethod
+    def is_shipping(record):
+        return (
+            record.get('default_shipping')  # Magento 2.x
+            or record.get('is_default_shipping'))  # Magento 1.x
+
+    @mapping
+    def default_billing(self, record):
+        return {'default_billing': self.is_billing(record)}
+
+    def default_shipping(self, record):
+        return {'default_shipping': self.is_shipping(record)}
 
     @mapping
     def names(self, record):
@@ -449,9 +467,9 @@ class AddressImportMapper(Component):
 
     @mapping
     def type(self, record):
-        if record.get('is_default_billing'):
+        if self.is_billing(record):
             address_type = 'invoice'
-        elif record.get('is_default_shipping'):
+        elif self.is_shipping(record):
             address_type = 'delivery'
         else:
             address_type = 'other'

@@ -110,8 +110,6 @@ class SaleOrder(models.Model):
             if old_state == 'cancel':
                 continue  # skip if already canceled
             for binding in order.magento_bind_ids:
-                if binding.backend_id.version == '2.0':
-                    continue  # TODO
                 job_descr = _("Cancel sales order %s") % (binding.external_id,)
                 binding.with_delay(
                     description=job_descr
@@ -133,8 +131,6 @@ class SaleOrder(models.Model):
         bindings.write({'odoo_id': new.id})
 
         for binding in bindings:
-            if binding.backend_id.version == '2.0':
-                continue  # TODO
             # the sales' status on Magento is likely 'canceled'
             # so we will export the new status (pending, processing, ...)
             job_descr = _("Reopen sales order %s") % (binding.external_id,)
@@ -247,10 +243,12 @@ class SaleOrderAdapter(Component):
     _magento2_search = 'orders'
     _magento2_key = 'entity_id'
     _admin_path = '{model}/view/order_id/{id}'
+    _admin2_path = 'sales/order/view/order_id/{id}'
 
-    def _call(self, method, arguments):
+    def _call(self, method, arguments, http_method=None):
         try:
-            return super(SaleOrderAdapter, self)._call(method, arguments)
+            return super(SaleOrderAdapter, self)._call(
+                method, arguments, http_method=http_method)
         except xmlrpc.client.Fault as err:
             # this is the error in the Magento API
             # when the sales order does not exist
@@ -301,6 +299,9 @@ class SaleOrderAdapter(Component):
             external_id, attributes=attributes)
 
     def get_parent(self, external_id):
+        if self.collection.version == '2.0':
+            res = self.read(external_id)
+            return res.get('relation_parent_id')
         return self._call('%s.get_parent' % self._magento_model,
                           [external_id])
 

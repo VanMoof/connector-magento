@@ -289,7 +289,12 @@ class SaleOrderImportMapper(Component):
 
     @mapping
     def shipping_method(self, record):
-        ifield = record.get('shipping_method')
+        if self.collection.version == '2.0':
+            shippings = record['extension_attributes']['shipping_assignments']
+            ifield = shippings[0]['shipping'].get(
+                'method') if shippings else None
+        else:
+            ifield = record.get('shipping_method')
         if not ifield:
             return
 
@@ -451,7 +456,10 @@ class SaleOrderImporter(Component):
         Note that we have to walk through all the chain of parent sales orders
         in the case of multiple editions / cancellations.
         """
-        parent_id = self.magento_record.get('relation_parent_real_id')
+        if self.collection.version == '2.0':
+            parent_id = self.magento_record.get('relation_parent_id')
+        else:
+            parent_id = self.magento_record.get('relation_parent_real_id')
         if not parent_id:
             return
         all_parent_ids = []

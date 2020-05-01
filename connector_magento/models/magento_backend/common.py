@@ -65,7 +65,9 @@ class MagentoBackend(models.Model):
         help="Webservice password",
     )
     token = fields.Char(
-        help='Authentication token for Magento 2.0+')
+        help=('Authentication token for Magento 2.0+. See https://devdocs.'
+              ' magento.com/guides/v2.3/get-started/authentication'
+              '/gs-authentication-token.html'))
     use_auth_basic = fields.Boolean(
         string='Use HTTP Auth Basic',
         help="Use a Basic Access Authentication for the API. "
