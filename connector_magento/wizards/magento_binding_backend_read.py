@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright 2017 ACSONE SA/NV
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
@@ -19,6 +18,7 @@ _logger = logging.getLogger(__name__)
 class MagentoBindingBackendRead(models.TransientModel):
 
     _name = 'magento.binding.backend.read'
+    _description = 'Magento Generic Object Reader Wizard'
 
     @api.model
     @tools.ormcache_context('self._uid', 'model_name', keys=('lang',))
@@ -61,8 +61,7 @@ class MagentoBindingBackendRead(models.TransientModel):
             _logger.info(
                 'No component registry for database %s. '
                 'Probably because the Odoo registry has not been built '
-                'yet.', exc_info=1
-            )
+                'yet.')
             return []
         component_classes = components_registry.lookup(
             collection_name='magento.backend',
