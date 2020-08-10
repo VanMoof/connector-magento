@@ -1217,6 +1217,8 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
                 'item_id %s belongs to a subscription or pre order',
                 record['item_id'])
             link_type = False
+            if record.get('is_pay_later_order'):
+                res['is_pay_later'] = True
             if record.get('is_virtual') and not record['price'] < 0:
                 if record.get('is_pre_order'):
                     res['presale_initial'] = True
@@ -1277,7 +1279,8 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
                 res['subscription_main_ids'] = []
                 for ref in refs:
                     subscription = self.env['vanmoof.subscription'].create({
-                        'name': ref})
+                        'name': ref,
+                        'is_pay_later': res.get('is_pay_later', False)})
                     res['subscription_main_ids'].append((4, subscription.id))
         else:
             _logger.debug(
