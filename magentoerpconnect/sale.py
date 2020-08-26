@@ -1217,7 +1217,8 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
                 'item_id %s belongs to a subscription or pre order',
                 record['item_id'])
             link_type = False
-            if record.get('is_pay_later_order'):
+            if record.get('extension_attributes', {}).get(
+                    'is_pay_later_order'):
                 res['is_pay_later'] = True
             if record.get('is_virtual') and not record['price'] < 0:
                 if record.get('is_pre_order'):
