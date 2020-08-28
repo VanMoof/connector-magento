@@ -699,6 +699,8 @@ class SaleOrderImporter(MagentoImporter):
             'outlet_product_prefix')
         is_pre_order = resource.get('extension_attributes', {}).get(
             'is_pre_order')
+        is_pay_later_order = resource.get('extension_attributes', {}).get(
+            'is_pay_later_order')
         # Group the childs with their parent
         for item in resource['items']:
             # Pre-order customizations
@@ -712,6 +714,8 @@ class SaleOrderImporter(MagentoImporter):
                 item['sku'] = item['sku'][len(prefix) + 1:-(len(suffix) + 1)]
             if is_pre_order:
                 item['is_pre_order'] = True
+            if is_pay_later_order:
+                item['is_pay_later_order'] = True
             # End of pre-order customizations
             if item.get('parent_item_id'):
                 child_items.setdefault(item['parent_item_id'], []).append(item)
@@ -1217,6 +1221,8 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
                 'item_id %s belongs to a subscription or pre order',
                 record['item_id'])
             link_type = False
+            if record.get('is_pay_later_order'):
+                res['is_pay_later'] = True
             if record.get('is_virtual') and not record['price'] < 0:
                 if record.get('is_pre_order'):
                     res['presale_initial'] = True
@@ -1277,7 +1283,8 @@ class SaleOrderLineImportMapper2000(SaleOrderLineImportMapper):
                 res['subscription_main_ids'] = []
                 for ref in refs:
                     subscription = self.env['vanmoof.subscription'].create({
-                        'name': ref})
+                        'name': ref,
+                        'is_pay_later': res.get('is_pay_later', False)})
                     res['subscription_main_ids'].append((4, subscription.id))
         else:
             _logger.debug(
