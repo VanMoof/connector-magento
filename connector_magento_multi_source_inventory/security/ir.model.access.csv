@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_magento_warehouse,access_magento_warehouse,model_magento_warehouse,connector.group_connector_manager,1,1,1,1
+"access_magento_source","magento_website connector manager","model_magento_source","connector.group_connector_manager",1,1,1,1
