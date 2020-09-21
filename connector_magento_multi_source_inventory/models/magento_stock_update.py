@@ -25,6 +25,10 @@ class MagentoStockUpdate(models.AbstractModel):
     def push_to_magento(self, payload):
         """ Push products list dictionary to Magento
         :param payload dict() """
+
+        self.env['magento.source'].search([], limit=1).export_stock_levels()
+
+
         url, headers = self._get_magento_endpoint(
             call_type='inventory/source-items')
         _logger.debug('Push product quantity to Magento endpoint %s' % url)
@@ -53,14 +57,14 @@ class MagentoStockUpdate(models.AbstractModel):
                 stock_field = (
                     binding.backend_id.product_stock_field_id.name or
                     'virtual_available')
-                for warehouse in self.env['magento.warehouse'].search(
+                for source in self.env['magento.source'].search(
                         [('active', '=', True),
                          ('backend_id', '=', binding.backend_id.id)]):
                     wh_product = product.with_context(
-                        location=warehouse.warehouse_id.lot_stock_id.id)
+                        location=source.warehouse.lot_stock_id.id)
                     quantity = max(0, wh_product[stock_field])
                     prod_dict = {'sku': binding.external_id,
-                                 'source_code': warehouse.magento_id,
+                                 'source_code': source.source_code,
                                  'quantity': quantity,
                                  'status': 1 if quantity > 0 else 0}
                     payload['sourceItems'].append(prod_dict)

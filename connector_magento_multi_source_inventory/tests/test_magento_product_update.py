@@ -44,10 +44,10 @@ class TestStockWarehouse(TransactionCase):
             'openerp_id': self.product.id,
             'backorders': 'use_default',
             'external_id': 'VM01-061'})
-        self.magento_warehouse = self.env['magento.warehouse'].create({
-            'warehouse_id': self.warehouse.id,
+        self.magento_source = self.env['magento.source'].create({
+            'warehouse': self.warehouse.id,
             'backend_id': self.backend.id,
-            'magento_id': 'default',
+            'source_code': 'default',
         })
 
         # execute cron
@@ -55,6 +55,6 @@ class TestStockWarehouse(TransactionCase):
 
         expected_regular = {'sku': self.magento_product.external_id,
                             'status': 0,
-                            'source_code': self.magento_warehouse.magento_id,
+                            'source_code': self.magento_source.source_code,
                             'quantity': 0}
         self.assertEqual(self.regular_prod_payload, [expected_regular])

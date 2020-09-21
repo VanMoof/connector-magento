@@ -12,7 +12,7 @@
     'data': [
         'security/ir.model.access.csv',
         'data/ir_cron.xml',
-        'views/magento_warehouse.xml',
+        'views/magento_source.xml',
     ],
     'installable': True,
 }
