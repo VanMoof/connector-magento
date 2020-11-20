@@ -1,0 +1,7 @@
+# Codeowners file to indicate the default reviewers
+# https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/about-code-owners
+
+# Default reviewers for everything, Odoo team
+# https://github.com/orgs/VanMoof/teams/odoo-owners
+
+*       @vanmoof/ODOO-owners
